@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SiteGuard 상세 리포트</title>
+  <link rel="stylesheet" href="report.css" />
+</head>
+<body>
+  <!-- header-box는 요청대로 그대로 유지 -->
+  <div class="header-box">
+    <img id="site-guard-icon" src="icons/site-guard-icon.png" alt="siteguard-icons">
+    <div>
+      <h2 class="header-title">SiteGuard</h2>
+      <h6 class="header-title">SiteGuard는 사용 중인 웹사이트의 보안 위험 요소를 자동으로 분석하는 웹 보안 점검 서비스입니다.</h6>
+    </div>
+    <!-- 이 검색창을 JS로 동작시킵니다 (submit 인터셉트) -->
+    <form class="search-box" action="" method="get" autocomplete="off">
+      <input class="search-txt" type="text" placeholder="URL을 입력하세요 (예: https://example.com)">
+      <button class="search-btn" type="submit">
+        <img class="search_icon" src="icons/search_icon.png" alt="검색 아이콘">
+      </button>
+    </form>
+  </div>
+
+  <main class="container" aria-live="polite">
+    <div class="meta-line">
+      <div class="path" id="rptUrl">-</div>
+    </div>
+
+    <section class="score-box">
+      <div class="gauge" id="gauge"></div>
+      <div class="score-info">
+        <div class="big" id="scoreText">--/100</div>
+        <div class="verdict" id="verdict">분석 중…</div>
+        <div class="final-note">최종 평가는 자동 분석을 기반으로 제공됩니다.</div>
+      </div>
+    </section>
+
+    <h2 class="section-title">기본 보안 구성 점검</h2>
+    <div class="table" id="tableBasic"></div>
+
+    <h2 class="section-title">취약점 점검 결과</h2>
+    <div class="table" id="tableVuln"></div>
+
+    <h2 class="section-title">추가 분석</h2>
+    <div class="table" id="tableExtra"></div>
+
+    <h2 class="section-title">분석 요약</h2>
+    <div class="card" id="summary">-</div>
+  </main>
+
+  <div class="footer-box"></div>
+
+  <!-- 단일 스크립트 -->
+  <script src="report.js" defer></script>
+</body>
+</html>

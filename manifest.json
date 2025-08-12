@@ -1,0 +1,10 @@
+{
+    "manifest_version": 3,
+    "name": "SiteGuard",
+    "version": "1.0.0",
+    "description": "현재 탭의 웹사이트 신뢰도를 간단 분석합니다.",
+    "action": { "default_popup": "popup.html", "default_title": "SiteGuard" },
+    "permissions": ["tabs", "storage", "scripting"],
+    "host_permissions": ["<all_urls>"],
+    "icons": { "16": "icons/green.png", "32": "icons/green.png", "128": "icons/green.png" }
+}
