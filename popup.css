@@ -1,0 +1,171 @@
+:root{
+    --bg:#ffffff;
+    --fg:#111827;
+    --muted:#6b7280;
+    --line:#e5e7eb;
+    --good:#0ea5e9;            /* brand accent */
+    --safe:#16a34a;
+    --warn:#f59e0b;
+    --danger:#dc2626;
+    --chip:#f3f4f6;
+    --chip-text:#374151;
+    --badge:#e5f8ea;
+    --badge-text:#065f46;
+    --badge-warn:#fff7e6;
+    --badge-warn-text:#92400e;
+    --badge-bad:#ffe8e8;
+    --badge-bad-text:#7f1d1d;
+    --shadow:0 8px 24px rgba(0,0,0,.08), 0 2px 8px rgba(0,0,0,.05);
+    --radius:14px;
+    --popup-width: 360px;
+}
+
+/* 팝업 사이즈 */
+html, body{
+    margin:0;
+    padding:0;
+    background:var(--bg);
+    color:var(--fg);
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans KR, Apple SD Gothic Neo, Arial, "Helvetica Neue", Helvetica, "Apple Color Emoji","Segoe UI Emoji", "Segoe UI Symbol";
+    width: var(--popup-width);
+    min-width: var(--popup-width);
+    max-width: var(--popup-width);
+}
+
+.app-header{
+    display:flex;
+    gap:10px;
+    padding:14px 16px 4px;
+    border-bottom:1px solid var(--line);
+}
+.logo{font-size:22px;line-height:1}
+.title-wrap{display:flex;flex-direction:column}
+.title{margin:0;font-size:18px;font-weight:700}
+.subtitle{margin:2px 0 0;font-size:12px;color:var(--muted)}
+
+main{padding:12px 14px 12px}
+
+/* 점수 카드 */
+.score-card{
+    display:flex;
+    gap:12px;
+    align-items:center;
+    background:#f8fafc;
+    padding:10px 12px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+.gauge{
+    --size: 92px;
+    --stroke: 10px;
+    width:var(--size);
+    height:var(--size);
+    border-radius:50%;
+    background:
+        conic-gradient(var(--safe) 0deg, var(--safe) 0deg, #e5e7eb 0deg);
+    position:relative;
+    flex:0 0 auto;
+}
+.gauge::before{
+    content:"";
+    position:absolute; inset:calc(var(--stroke)) ;
+    background:#fff; border-radius:50%;
+    box-shadow: inset 0 0 0 1px #e5e7eb;
+}
+.score-txt{display:flex;flex-direction:column;gap:4px;min-width:0}
+.score{font-weight:800;font-size:20px}
+.url{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+.verdict{font-size:13px;color:var(--safe);font-weight:700}
+
+/* 리스트 */
+.section-title{
+    font-size:13px;color:#4b5563;margin:16px 0 8px;font-weight:700
+}
+.kv{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.kv li{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:10px 12px;border-top:1px solid var(--line)}
+.kv li:first-child{border-top:none}
+.k{font-size:13px;color:#374151}
+.v{font-size:13px;color:#6b7280}
+.badge{
+    font-size:12px;
+    padding:3px 8px;
+    border-radius:999px;
+    background:var(--badge);
+    color:var(--badge-text);
+    border:1px solid #c7ead0;
+}
+.badge.warn{background:var(--badge-warn);color:var(--badge-warn-text);border-color:#f3d19c}
+.badge.bad{background:var(--badge-bad);color:var(--badge-bad-text);border-color:#f5bcbc}
+
+/* 버튼 */
+.primary{
+    width:100%;
+    margin-top:10px;
+    background:var(--good);
+    color:#fff;
+    border:none;
+    padding:10px 12px;
+    border-radius:10px;
+    font-weight:700;
+    cursor:pointer;
+}
+.primary:hover{filter:brightness(.96)}
+.helper{margin:6px 2px 0;font-size:11px;color:var(--muted)}
+
+.settings{margin-top:14px}
+.setting-row{display:flex;justify-content:space-between;align-items:center;border-bottom:1px dashed var(--line);padding:10px 2px}
+.setting-title{font-weight:700;font-size:13px}
+.setting-desc{font-size:12px;color:var(--muted)}
+.link-btn{
+    appearance:none;border:none;background:transparent;color:var(--good);
+    font-weight:700;cursor:pointer;padding:6px 8px;border-radius:8px
+}
+.link-btn:hover{background:#f0f9ff}
+
+/* 키워드 패널 */
+.keywords-panel{
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:8px;
+    margin:8px 0 12px;
+    background:#fcfcfd;
+}
+.pill-list{display:flex;flex-wrap:wrap;gap:6px}
+.pill{
+    background:var(--chip);
+    color:var(--chip-text);
+    padding:4px 8px;
+    border-radius:999px;
+    font-size:12px;
+    display:inline-flex;align-items:center;gap:6px
+}
+.pill button{
+    border:none;background:transparent;color:#9ca3af;cursor:pointer;font-size:14px;line-height:1
+}
+.add-keyword{display:flex;gap:6px;margin-top:8px}
+.add-keyword input{
+    flex:1;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px
+}
+.add-keyword .add-btn{
+    border:none;background:#111827;color:#fff;border-radius:8px;padding:8px 10px;font-weight:700;cursor:pointer
+}
+.add-keyword .add-btn:hover{filter:brightness(.95)}
+
+/* 토글 스위치 */
+.switch{position:relative;display:inline-block;width:44px;height:26px}
+.switch input{opacity:0;width:0;height:0}
+.slider{
+    position:absolute;cursor:pointer;inset:0;background:#e5e7eb;border-radius:999px;transition:.2s;
+    box-shadow: inset 0 0 0 1px #d1d5db;
+}
+.slider:before{
+    content:"";position:absolute;height:20px;width:20px;left:3px;top:3px;background:white;border-radius:50%;
+    box-shadow:0 1px 3px rgba(0,0,0,.2);transition:.2s;
+}
+.switch input:checked + .slider{background:#22c55e}
+.switch input:checked + .slider:before{transform:translateX(18px)}
+
+.foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;color:var(--muted)}
+.ghost{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 10px;color:#374151;font-weight:700;cursor:pointer}
+.ghost:hover{background:#f9fafb}
+.ver{font-size:11px}
