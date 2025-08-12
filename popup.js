@@ -76,29 +76,40 @@ function setGauge(score) {
 
 function updateIconByScore(score) {
     let iconPath;
+    let logoHTML; // popup.html 내부 로고 변경용
+
     if (score <= 50) {
         iconPath = {
-        16: "icons/red.png",
-        32: "icons/red.png",
-        128: "icons/red.png"
+            16: "icons/red.png",
+            32: "icons/red.png",
+            128: "icons/red.png"
         };
+        logoHTML = '<img src="icons/red.png" alt="위험" class="logo-img">';
     } else if (score <= 79) {
         iconPath = {
-        16: "icons/yellow.png",
-        32: "icons/yellow.png",
-        128: "icons/yellow.png"
+            16: "icons/yellow.png",
+            32: "icons/yellow.png",
+            128: "icons/yellow.png"
         };
+        logoHTML = '<img src="icons/yellow.png" alt="주의" class="logo-img">';
     } else {
         iconPath = {
-        16: "icons/green.png",
-        32: "icons/green.png",
-        128: "icons/green.png"
+            16: "icons/green.png",
+            32: "icons/green.png",
+            128: "icons/green.png"
         };
+        logoHTML = '<img src="icons/green.png" alt="안전" class="logo-img">';
     }
 
+    // 확장 아이콘 변경
     chrome.action.setIcon({ path: iconPath });
-}
 
+    // popup.html 내부 로고 변경
+    const logoEl = document.querySelector('.logo');
+    if (logoEl) {
+        logoEl.innerHTML = logoHTML;
+    }
+}
 
 function renderKeywords() {
     const list = $("#keywordsList");
@@ -312,3 +323,4 @@ async function init() {
 
 document.addEventListener("DOMContentLoaded", init);
 })();
+
