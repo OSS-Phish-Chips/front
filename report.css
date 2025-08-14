@@ -9,7 +9,6 @@ html,body{
   margin:0; padding:0; background:var(--bg); color:var(--fg);
   font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Noto Sans KR,Arial
 }
-
 .container{max-width:960px;margin:0 auto;padding:18px 18px 96px}
 
 /* 기존 header-box는 그대로 사용 (요청사항) */
@@ -38,14 +37,53 @@ html,body{
 
 /* 점수 박스/게이지 */
 .score-box{
-  display:flex;gap:16px;align-items:center;background:#fff;border:1px solid var(--line);
-  border-radius:16px;padding:18px;box-shadow:var(--shadow);margin-bottom:60px;
+  display:flex;gap:16px;align-items:center;background:#efefef;border:1px solid var(--line);
+  border-radius:85px 16px 16px 85px;box-shadow:var(--shadow);margin-bottom:60px;
 }
+
+/* 게이지 */
 .gauge{
-  --size:120px;--stroke:14px;width:var(--size);height:var(--size);border-radius:50%;
-  background:conic-gradient(var(--safe) 0deg, #e5e7eb 0deg);position:relative
+  --size:120px;           /* 게이지 지름 */
+  --stroke:9px;          /* 두께 */
+  position:relative;
+  width:var(--size); height:var(--size);
+  border-radius:50%;
+  background:conic-gradient(var(--brand) 0deg, var(--line) 0deg);
 }
-.gauge::before{content:"";position:absolute;inset:calc(var(--stroke));background:#fff;border-radius:50%;box-shadow:inset 0 0 0 1px var(--line)}
+
+/* 내부 원(빈 공간) */
+.gauge::before{
+  content:"";
+  position:absolute; inset:calc(var(--stroke));
+  background:#fff; border-radius:50%;
+  box-shadow:inset 0 0 0 1px var(--line);
+}
+
+/* 중앙 컨텐츠 래퍼 */
+.gauge-content{
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  z-index:2; /* ::before 위에 */
+}
+
+/* 점수 상자: 내부 지름의 '반' 너비로 고정 */
+.score-chip{
+  /* 내부 지름 = var(--size) - 2*var(--stroke)
+     그 절반이 상자 너비가 되도록 계산 */
+  width:calc((var(--size) - 2 * var(--stroke)) / 2);
+  height:36px;
+  display:flex; align-items:center; justify-content:center;
+  gap:6px;
+  background:#fff;
+  border:none;
+  border-radius:999px;
+  font-weight:800; font-size:18px;
+}
+
+/* 점수 텍스트 */
+.score-chip .unit{font-weight:700; font-size:14px; color:var(--muted);}
+
+/* 게이지 오른쪽 설명 */
 .score-info{display:flex;flex-direction:column;gap:6px}
 .big{font-size:28px;font-weight:900}
 .verdict{font-size:15px;font-weight:700}
@@ -74,12 +112,8 @@ html,body{
 }
 
 /* 첫 행은 굵은 윗줄 */
-.row:first-child {
-  border-top: 3px solid var(--line); /* 제목행 윗줄 두껍게 */
-}
-.cell-title {
-  font-weight: 400;
-}
+.row:first-child { border-top: 3px solid var(--line); }
+.cell-title { font-weight: 400; }
 
 .badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:2px 8px;border:1px solid}
 .badge.safe{background:#e5f8ea;color:#065f46;border-color:#c7ead0}
@@ -89,13 +123,29 @@ html,body{
 .card{border:1px solid var(--line);background:#fff;border-radius:12px;padding:14px}
 .card.small{color:var(--muted);font-size:14px}
 
+/* 푸터 */
 .footer-box {
-    width: 100%;
-    height: 162px;
-    left: 0px;
-    top: 2303px;
+  width: 100%;
+  height: 162px;
+  background: linear-gradient(180deg, #FFFFFF 0%, #9B9B9B 100%);
+  box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+}
 
-    background: linear-gradient(180deg, #FFFFFF 0%, #9B9B9B 100%);
-    box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.25);
+/* 상태별 텍스트 컬러 */
+.verdict.safe, .score-chip.safe { color: var(--safe); }
+.verdict.warn, .score-chip.warn { color: var(--warn); }
+.verdict.bad,  .score-chip.bad  { color: var(--bad);  }
 
-} 
+/* 점수칩 테두리도 상태색으로 */
+.score-chip.safe { border-color: var(--safe); }
+.score-chip.warn { border-color: var(--warn); }
+.score-chip.bad  { border-color: var(--bad);  }
+
+/* 상태 뱃지 안의 아이콘 공통 정렬 */
+.badge svg { width:16px; height:16px; display:block; }
+.badge { gap:6px; }
+
+.section-title.with-line {
+  border-bottom: 5px solid var(--line);
+  padding-bottom: 6px; /* 텍스트와 선 사이 간격 */
+}
