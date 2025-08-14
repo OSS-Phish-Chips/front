@@ -1,119 +1,124 @@
 <!doctype html>
 <html lang="ko">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>SiteGuard</title>
-    <link rel="stylesheet" href="popup.css" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SiteGuard</title>
+  <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
+  <div class="shell"><!-- 바깥 둥근 프레임 -->
+
     <header class="app-header">
-        <div class="logo"><img id="site-guard-icon" src="icons/site-guard-icon.png" alt="siteguard-icons" class="logo-img"></div>
-        <div class="title-wrap">
+      <div class="logo"><img id="site-guard-icon" src="icons/site-guard-icon.png" alt="siteguard-icons" class="logo-img"></div>
+      <div class="title-wrap">
         <h1 class="title">SiteGuard</h1>
         <p class="subtitle">현재 방문한 사이트의 안전도를 점검해보세요</p>
-        </div>
+      </div>
     </header>
 
+    <div class="header-rule"></div><!-- 헤더 밑 얇은 선 -->
+
     <main>
-    <!-- 점수 게이지 -->
-    <section class="score-card" aria-live="polite">
+      <!-- 점수 게이지 카드 -->
+      <section class="score-card" aria-live="polite">
         <div class="gauge" id="gauge" role="img" aria-label="안전도 점수"></div>
         <div class="score-txt">
-            <div id="scoreNum" class="score">--</div>
-            <div id="urlDisplay" class="url">...</div>
-            <div id="verdict" class="verdict">분석 중…</div>
+          <div id="scoreNum" class="score">--</div>
+          <div id="urlDisplay" class="url">...</div>
+          <div id="verdict" class="verdict">분석 중…</div>
         </div>
-    </section>
+      </section>
 
-    <!-- 세부 분석 결과 -->
-    <section class="details">
+      <!-- 세부 분석 결과 -->
+      <section class="details">
         <h2 class="section-title">세부 분석 결과 요약</h2>
 
         <ul class="kv">
-            <li>
+          <li>
             <span class="k">SSL 사용 여부</span>
             <span class="v" id="sslText">-</span>
             <span class="badge" id="sslBadge">확인중</span>
-            </li>
-            <li>
+          </li>
+          <li>
             <span class="k">WHOIS 등록 여부</span>
             <span class="v" id="whoisText">-</span>
             <span class="badge" id="whoisBadge">확인중</span>
-            </li>
-            <li>
+          </li>
+          <li>
             <span class="k">악성 URL 탐지</span>
             <span class="v" id="blacklistText">-</span>
             <span class="badge" id="blacklistBadge">확인중</span>
-            </li>
-            <li>
+          </li>
+          <li>
             <span class="k">의심 키워드</span>
             <span class="v" id="keywordText">-</span>
             <span class="badge warn" id="keywordBadge">확인중</span>
-            </li>
-            <li>
+          </li>
+          <li>
             <span class="k">리디렉션 여부</span>
             <span class="v" id="redirectText">-</span>
             <span class="badge" id="redirectBadge">확인중</span>
-            </li>
+          </li>
         </ul>
 
         <button id="reportBtn" class="primary">
-            자세히 보기 <span aria-hidden="true">→</span>
+          자세히 보기 <span aria-hidden="true">→</span>
         </button>
         <p class="helper">사이트에 대한 상세 보안 리포트를 확인합니다.</p>
-        </section>
+      </section>
 
-        <!-- 설정 -->
-        <section class="settings">
+      <!-- 설정 -->
+      <section class="settings">
         <h2 class="section-title">설정</h2>
 
         <div class="setting-row">
-            <div>
+          <div>
             <div class="setting-title">자동 검사</div>
             <div class="setting-desc">사이트 방문 시 자동으로 안전 여부를 확인합니다.</div>
-            </div>
-            <label class="switch">
-            <input type="checkbox" id="autoScan">
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="autoScan" />
             <span class="slider"></span>
-            </label>
+          </label>
         </div>
 
         <div class="setting-row">
-            <div>
+          <div>
             <div class="setting-title">위험 키워드 관리</div>
             <div class="setting-desc">차단할 단어나 URL 키워드를 직접 설정할 수 있습니다.</div>
-            </div>
-            <button id="manageKeywords" class="link-btn" aria-expanded="false">관리</button>
+          </div>
+          <button id="manageKeywords" class="link-btn" aria-expanded="false">관리</button>
         </div>
 
         <div id="keywordsPanel" class="keywords-panel" hidden>
-            <div id="keywordsList" class="pill-list" aria-live="polite"></div>
-            <form id="addKeywordForm" class="add-keyword">
+          <div id="keywordsList" class="pill-list" aria-live="polite"></div>
+          <form id="addKeywordForm" class="add-keyword">
             <input id="keywordInput" type="text" placeholder="키워드 추가 (예: login, verify)" required />
             <button class="add-btn" type="submit">추가</button>
-            </form>
+          </form>
         </div>
 
         <div class="setting-row">
-            <div>
+          <div>
             <div class="setting-title">데이터 공유</div>
             <div class="setting-desc">익명 검사 결과를 개선 목적으로 공유합니다.</div>
-            </div>
-            <label class="switch">
-            <input type="checkbox" id="shareData">
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="shareData" />
             <span class="slider"></span>
-            </label>
+          </label>
         </div>
-        </section>
+      </section>
 
-        <footer class="foot">
+      <footer class="foot">
         <button id="refreshBtn" class="ghost">다시 검사</button>
         <span class="ver">v1.0</span>
-        </footer>
+      </footer>
     </main>
 
-    <script src="popup.js"></script>
+  </div><!-- /.shell -->
+
+  <script src="popup.js"></script>
 </body>
 </html>
-
