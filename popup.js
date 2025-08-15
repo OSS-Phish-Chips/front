@@ -1,9 +1,6 @@
 /* global chrome */
 (() => {
-  // ---------- Constants ----------
   const DEMO_URL = "https://www.sookmyung.ac.kr/kr/index.do";
-
-  // ---------- Utilities ----------
   const $ = (sel) => document.querySelector(sel);
 
   const defaultKeywords = [
@@ -11,29 +8,21 @@
     "gift","bonus","win","free","wallet",
     "bank","secure","pay","paypal","sms"
   ];
-
-  const knownBadHosts = new Set([
-    "example-phish.test","malicious-site.xyz","free-gift-card.top"
-  ]);
+  const knownBadHosts = new Set(["example-phish.test","malicious-site.xyz","free-gift-card.top"]);
 
   const state = {
-    url: null,
-    host: null,
-    score: 0,
-    isDemo: false,
+    url: null, host: null, score: 0, isDemo: false,
     parts: { ssl:null, whois:null, blacklist:null, keywords:null, redirect:null },
     keywords: []
   };
 
-  // ---------- Storage ----------
+  // ---- storage ----
   async function loadSettings() {
     const { autoScan = true, shareData = false, keywords } =
       (await chrome.storage?.sync.get(["autoScan","shareData","keywords"])) ?? {};
     state.keywords = Array.isArray(keywords) && keywords.length ? keywords : defaultKeywords.slice();
-    const autoScanEl = $("#autoScan");
-    const shareDataEl = $("#shareData");
-    if (autoScanEl) autoScanEl.checked = !!autoScan;
-    if (shareDataEl) shareDataEl.checked = !!shareData;
+    $("#autoScan") && ($("#autoScan").checked = !!autoScan);
+    $("#shareData") && ($("#shareData").checked = !!shareData);
     renderKeywords();
   }
   async function saveSettings() {
@@ -44,7 +33,7 @@
     });
   }
 
-  // ---------- UI ----------
+  // ---- UI helpers ----
   function setBadge(elText, elBadge, text, level = "safe") {
     if (elText) elText.textContent = text;
     if (!elBadge) return;
@@ -58,30 +47,20 @@
     const clamped = Math.max(0, Math.min(100, Math.round(score)));
     const el = $("#gauge");
     const angle = clamped * 3.6;
-
     let color = "var(--safe)", verdictText = "이 사이트는 안전합니다.";
     if (clamped < 60) { color = "var(--danger)"; verdictText = "위험할 수 있습니다."; }
     else if (clamped < 80) { color = "var(--warn)"; verdictText = "주의가 필요합니다."; }
 
     if (el) {
       el.style.background = `conic-gradient(${color} 0 ${angle}deg, #e5e7eb 0)`;
-      // 게이지 중앙 숫자
       el.innerHTML = `
         <div class="gauge-center">
           <span class="gauge-score">${clamped}</span>
           <span class="gauge-unit">/100</span>
-        </div>
-      `;
+        </div>`;
     }
-
-    const scoreNum = $("#scoreNum");
-    if (scoreNum) scoreNum.textContent = `${clamped}/100`;
-
-    const verdict = $("#verdict");
-    if (verdict) {
-      verdict.textContent = verdictText;
-      verdict.style.color = color;
-    }
+    const scoreNum = $("#scoreNum"); if (scoreNum) scoreNum.textContent = `${clamped}/100`;
+    const verdict = $("#verdict");  if (verdict) { verdict.textContent = verdictText; verdict.style.color = color; }
   }
 
   function updateIconByScore(score) {
@@ -102,44 +81,31 @@
   }
 
   function renderKeywords() {
-    const list = $("#keywordsList");
-    if (!list) return;
+    const list = $("#keywordsList"); if (!list) return;
     list.innerHTML = "";
     state.keywords.forEach((kw, idx) => {
       const pill = document.createElement("span");
       pill.className = "pill";
       pill.innerHTML = `<span>${kw}</span>`;
       const btn = document.createElement("button");
-      btn.type = "button";
-      btn.setAttribute("aria-label", `${kw} 삭제`);
-      btn.innerHTML = "&times;";
+      btn.type = "button"; btn.setAttribute("aria-label", `${kw} 삭제`); btn.innerHTML = "&times;";
       btn.addEventListener("click", async () => {
         state.keywords.splice(idx, 1);
-        renderKeywords();
-        await saveSettings();
-        if (state.url) analyze(state.url); // 즉시 반영
+        renderKeywords(); await saveSettings();
+        if (state.url) analyze(state.url);
       });
-      pill.appendChild(btn);
-      list.appendChild(pill);
+      pill.appendChild(btn); list.appendChild(pill);
     });
   }
 
-  // ---------- Analysis ----------
+  // ---- analysis ----
   async function analyze(urlStr, { markDemo = false } = {}) {
     const url = new URL(urlStr);
-    state.url = urlStr;
-    state.host = url.hostname;
-    state.isDemo = !!markDemo;
+    state.url = urlStr; state.host = url.hostname; state.isDemo = !!markDemo;
 
-    const urlDisplay = $("#urlDisplay");
-    if (urlDisplay) urlDisplay.textContent = urlStr;
-
-    // 예시 배지 안내
+    const urlDisplay = $("#urlDisplay"); if (urlDisplay) urlDisplay.textContent = urlStr;
     const helper = document.querySelector(".helper");
-    if (helper) {
-      helper.innerHTML = '사이트에 대한 상세 보안 리포트를 확인합니다.'
-        + (state.isDemo ? ' <span class="demo-badge">예시 URL 미리보기</span>' : '');
-    }
+    if (helper) helper.innerHTML = '사이트에 대한 상세 보안 리포트를 확인합니다.' + (state.isDemo ? ' <span class="demo-badge">예시 URL 미리보기</span>' : '');
 
     let score = 100;
 
@@ -206,7 +172,6 @@
     setGauge(state.score);
     updateIconByScore(state.score);
 
-    // 상태 클래스 기록
     const mapBadge = (el) =>
       el.classList.contains("bad") ? "bad" : el.classList.contains("warn") ? "warn" : "safe";
     state.parts.ssl = mapBadge($("#sslBadge"));
@@ -216,68 +181,81 @@
     state.parts.redirect = mapBadge($("#redirectBadge"));
   }
 
-  // ---------- Report ----------
+  // ---- report open (항상 새 탭 열림 보장) ----
   async function openReport() {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const reportUrl = chrome.runtime.getURL("report.html");
 
-    const snap = {
-      basic: [
-        { title:"SSL 인증서",
-          level: document.querySelector("#sslBadge")?.classList.contains("bad") ? "bad"
-               : document.querySelector("#sslBadge")?.classList.contains("warn") ? "warn" : "safe",
-          note: document.querySelector("#sslText")?.textContent || "-" },
-        { title:"WHOIS 등록 정보",
-          level: document.querySelector("#whoisBadge")?.classList.contains("warn") ? "warn" : "safe",
-          note: document.querySelector("#whoisText")?.textContent || "-" },
-        { title:"악성 도메인 목록 여부",
-          level: document.querySelector("#blacklistBadge")?.classList.contains("bad") ? "bad" : "safe",
-          note: document.querySelector("#blacklistText")?.textContent || "-" },
-        { title:"DNS 상태", level:"safe", note:"정상 도메인 구조." },
-        { title:"HTML 기본 분석", level:"safe", note:"특이사항 없음." }
-      ],
-      vuln: [
-        { title:"XSS 탐지", level:"safe", note:"악성 스크립트 징후 없음." },
-        { title:"Clickjacking 방지 설정", level:"warn", note:"헤더 접근 제한으로 확인 불가." },
-        { title:"파일 업로드 경로 노출", level:"safe", note:"특이사항 없음." },
-        { title:"디렉터리 리스팅", level:"safe", note:"노출되지 않음." },
-        { title:"CSP(Content-Security-Policy)", level:"warn", note:"정책 확인 불가." },
-        { title:"CORS 정책", level:"safe", note:"개방적 징후 없음." },
-        { title:"서버 정보 노출", level:"safe", note:"식별 헤더 노출 징후 없음." }
-      ],
-      extra: [
-        { title:"의심 키워드 포함 여부",
-          level: document.querySelector("#keywordBadge")?.classList.contains("warn") ? "warn" : "safe",
-          note: document.querySelector("#keywordText")?.textContent || "-" },
-        { title:"리디렉션 여부",
-          level: document.querySelector("#redirectBadge")?.classList.contains("warn") ? "warn" : "safe",
-          note: document.querySelector("#redirectText")?.textContent || "-" }
-      ],
-      summary: state.isDemo ? "예시 URL로 캡처한 결과 스냅샷입니다." : "팝업에서 캡처한 결과 스냅샷입니다."
-    };
+    // 1) 새로운 탭 먼저 오픈 (스냅샷 실패해도 열리게)
+    try {
+      await chrome.tabs.create({ url: reportUrl });
+    } catch (e) {
+      console.error("[SiteGuard] tabs.create failed:", e, chrome.runtime?.lastError);
+      try { window.open(reportUrl, "_blank"); } catch {}
+    }
 
-    const reportData = {
-      url: state.url,
-      score: state.score,
-      tabId: tab?.id || null,
-      ...(state.url ? snap : {}),
-      __ts: Date.now()
-    };
+    // 2) 스냅샷 저장 (실패해도 report.html은 fallback 렌더)
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-    await chrome.storage.local.set({ reportData });
-    chrome.tabs.create({ url: chrome.runtime.getURL("report.html") });
+      const snap = {
+        basic: [
+          { title:"SSL 인증서",
+            level: document.querySelector("#sslBadge")?.classList.contains("bad") ? "bad"
+                : document.querySelector("#sslBadge")?.classList.contains("warn") ? "warn" : "safe",
+            note: document.querySelector("#sslText")?.textContent || "-" },
+          { title:"WHOIS 등록 정보",
+            level: document.querySelector("#whoisBadge")?.classList.contains("warn") ? "warn" : "safe",
+            note: document.querySelector("#whoisText")?.textContent || "-" },
+          { title:"악성 도메인 목록 여부",
+            level: document.querySelector("#blacklistBadge")?.classList.contains("bad") ? "bad" : "safe",
+            note: document.querySelector("#blacklistText")?.textContent || "-" },
+          { title:"DNS 상태", level:"safe", note:"정상 도메인 구조." },
+          { title:"HTML 기본 분석", level:"safe", note:"특이사항 없음." }
+        ],
+        vuln: [
+          { title:"XSS 탐지", level:"safe", note:"악성 스크립트 징후 없음." },
+          { title:"Clickjacking 방지 설정", level:"warn", note:"헤더 접근 제한으로 확인 불가." },
+          { title:"파일 업로드 경로 노출", level:"safe", note:"특이사항 없음." },
+          { title:"디렉터리 리스팅", level:"safe", note:"노출되지 않음." },
+          { title:"CSP(Content-Security-Policy)", level:"warn", note:"정책 확인 불가." },
+          { title:"CORS 정책", level:"safe", note:"개방적 징후 없음." },
+          { title:"서버 정보 노출", level:"safe", note:"식별 헤더 노출 징후 없음." }
+        ],
+        extra: [
+          { title:"의심 키워드 포함 여부",
+            level: document.querySelector("#keywordBadge")?.classList.contains("warn") ? "warn" : "safe",
+            note: document.querySelector("#keywordText")?.textContent || "-" },
+          { title:"리디렉션 여부",
+            level: document.querySelector("#redirectBadge")?.classList.contains("warn") ? "warn" : "safe",
+            note: document.querySelector("#redirectText")?.textContent || "-" }
+        ],
+        summary: state.isDemo ? "예시 URL로 캡처한 결과 스냅샷입니다." : "팝업에서 캡처한 결과 스냅샷입니다."
+      };
+
+      const reportData = {
+        url: state.url,
+        score: state.score,
+        tabId: tab?.id || null,
+        ...(state.url ? snap : {}),
+        __ts: Date.now()
+      };
+
+      await chrome.storage.local.set({ reportData });
+    } catch (e) {
+      console.error("[SiteGuard] save snapshot failed:", e, chrome.runtime?.lastError);
+    }
   }
 
-  // ---------- Wiring ----------
+  // ---- init ----
   async function init() {
     await loadSettings();
 
-    // 관리 버튼: 텍스트는 항상 "관리", 아이콘만 회전
     $("#manageKeywords")?.addEventListener("click", (e) => {
       const panel = $("#keywordsPanel");
       const expanded = e.currentTarget.getAttribute("aria-expanded") === "true";
       panel.hidden = expanded;
       e.currentTarget.setAttribute("aria-expanded", String(!expanded));
-      e.currentTarget.textContent = "관리"; // 항상 동일
+      e.currentTarget.textContent = "관리";
     });
 
     $("#autoScan")?.addEventListener("change", saveSettings);
@@ -290,9 +268,10 @@
       await analyze(target, { markDemo: useDemo });
     });
 
+    // ✅ 여기서만 바인딩 (DOM 생성 이후)
     $("#reportBtn")?.addEventListener("click", openReport);
 
-    // ✅ 처음 열리면 항상 예시 URL로 미리보기
+    // 처음 열리면 예시 URL로 미리보기
     await analyze(DEMO_URL, { markDemo: true });
   }
 
