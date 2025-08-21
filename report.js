@@ -37,6 +37,140 @@
       <div>${n}</div>
     </div>`;
 
+  // ===== Backend analyze (port 3000) =====
+  const API_BASE = "http://127.0.0.1:3000";
+  async function runBackendAnalyze(targetUrl) {
+    const r = await fetch(`${API_BASE}/analyze?url=${encodeURIComponent(targetUrl)}`);
+    if (!r.ok) throw new Error(`Backend ${r.status}`);
+    return r.json(); // { totalScore, overallGrade, details:{...}, meta... }
+  }
+
+  // ===== ML analyze (port 8000) =====
+  const ML_API = "http://127.0.0.1:8000";
+  async function runMlDetect(targetUrl) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const r = await fetch(`${ML_API}/predict?url=${encodeURIComponent(targetUrl)}`, { signal: ctrl.signal });
+      clearTimeout(t);
+      if (!r.ok) throw new Error(`ML ${r.status}`);
+      return await r.json(); // { label, proba, ... }
+    } catch (e) {
+      clearTimeout(t);
+      console.warn("[SiteGuard] ML detect failed:", e);
+      return null; // 실패 허용(백엔드 점수만 사용)
+    }
+  }
+  function clamp01(v){ return Math.max(0, Math.min(1, Number(v) || 0)); }
+  function mlToScore(res){
+    if (!res) return null;
+    const pMal = (typeof res.proba === "number")
+      ? clamp01(res.proba)
+      : clamp01(res?.p_phishing ?? res?.prob_phish ?? 0);
+    return Math.round((1 - pMal) * 100); // 악성확률 → 안전점수
+  }
+  function unifyScoreFromBackendAndML(backendData, mlRes){
+    const backendScore = Math.max(0, Math.min(100,
+      Number(backendData?.totalScore ?? backendData?.score ?? backendData?.meta?.safeScore100) || 0));
+    const mlScore = mlToScore(mlRes);
+    return (mlScore == null) ? backendScore : Math.round((backendScore + mlScore) / 2);
+  }
+
+  // 등급 문자열 → 뱃지 레벨
+  function gradeToLevel(grade) {
+    if (!grade) return "warn";
+    if (grade.includes("위험")) return "bad";
+    if (grade.includes("주의")) return "warn";
+    return "safe";
+  }
+
+  // 백엔드 구조 → report 페이지 구조로 변환 (1번 스샷 형태)
+  function convertBackendToReport(data, targetUrl) {
+    const d = data?.details || {};
+    const ssl    = d.ssl;
+    const whois  = d.whois;
+    const dns    = d.dns;
+    const header = d.header;          // 보안 헤더 관련 이슈
+    const vuln   = d.vulnerability;   // 취약점 스캐닝 결과
+    const urlCat = d.url;             // URL/HTML 간이 분석 + 블랙리스트/키워드 등
+
+    // 등급→레벨
+    const toLevel = (sec) => gradeToLevel(sec?.grade || "");
+    // 첫 메시지를 설명으로
+    const firstMsg = (sec, fb) => {
+      const msgs = sec?.messages || [];
+      if (!msgs.length) return fb || "특이사항 없음";
+      const m = msgs[0];
+      return typeof m === "string" ? m : (m.note || m.issue || JSON.stringify(m));
+    };
+
+    // ----- [기본 보안 구성 점검] -----
+    const basic = [
+      { title: "SSL 인증서",           level: toLevel(ssl),    note: firstMsg(ssl, "HTTPS/HTTP 확인") },
+      { title: "WHOIS 등록 정보",       level: toLevel(whois),  note: firstMsg(whois, "WHOIS 확인") },
+      {
+        title: "악성 도메인 목록 여부",
+        level: (() => {
+          const txt = (urlCat?.messages || []).join(" ");
+          return /blacklist|악성|피싱|malicious|suspicious/i.test(txt) ? "warn" : toLevel(urlCat) || "safe";
+        })(),
+        note: firstMsg(urlCat, "악성 URL 목록에 포함되지 않았습니다."),
+      },
+      { title: "DNS 상태",             level: toLevel(dns),    note: firstMsg(dns, "정상 도메인 구조") },
+      { title: "HTML 기본 분석",        level: toLevel(urlCat), note: firstMsg(urlCat, "특이사항 없음(간이 분석)") },
+    ];
+
+    // ----- [취약점 점검 결과] -----
+    const headerNote = firstMsg(header, "보안 헤더 확인");
+    const vulnNote   = firstMsg(vuln,   "악성 스크립트 징후 없음");
+
+    const vulnRows = [
+      { title: "XSS 탐지",                 level: toLevel(vuln),   note: vulnNote },
+      { title: "Clickjacking 방지 설정",    level: toLevel(header), note: headerNote },
+      { title: "파일 업로드 경로 노출",      level: "safe",          note: "노출 흔적 없음" },
+      { title: "디렉터리 리스팅",           level: "safe",          note: "노출되지 않음" },
+      { title: "CSP(Content-Security-Policy)", level: toLevel(header), note: headerNote },
+      { title: "CORS 정책",                 level: "safe",          note: "개방적 아님" },
+      { title: "서버 정보 노출",            level: "safe",          note: "식별 헤더 노출 징후 없음" },
+    ];
+
+    // ----- [추가 분석] -----
+    const redirectCount =
+      data?.meta?.redirectCount ??
+      (urlCat?.meta?.redirectCount ?? 0);
+
+    const extra = [
+      {
+        title: "의심 키워드 포함 여부",
+        level: (() => {
+          const txt = (urlCat?.messages || []).join(" ");
+          return /키워드|keyword|login|admin|pay|verify|otp|bank/i.test(txt) ? "warn" : "safe";
+        })(),
+        note: firstMsg(urlCat, "의심스러운 키워드는 포함되어 있지 않습니다."),
+      },
+      {
+        title: "리디렉션 여부",
+        level: redirectCount ? "warn" : "safe",
+        note: redirectCount ? `외부로의 자동 이동이 감지되었습니다(${redirectCount}).`
+                            : "외부로의 자동 이동이 감지되지 않았습니다.",
+      },
+    ];
+
+    return {
+      url: data?.meta?.url || targetUrl,
+      // 백엔드 점수(0~100)를 기본으로 넣고 → 렌더 직전에 ML과 평균으로 덮어씀
+      score: Math.max(0, Math.min(100,
+              Number(data?.score ?? data?.totalScore ?? data?.meta?.safeScore100) || 0)),
+      basic,
+      vuln: vulnRows,
+      extra,
+      tools: ["axios", "cheerio", "ssl-certificate", "whois-json", "Google Safe Browsing API", "ML(FastAPI)"],
+      analysisTypes: ["비접속 기반 정적 분석", "응답 기반 동적 분석"],
+      analyzedAt: data?.analyzedAt || formatKST(),
+      summary: data?.summary || "백엔드 규칙 기반 종합 분석 결과입니다.",
+    };
+  }
+
   /* ===== SVG 아이콘 ===== */
   const Icons = {
     safe: () =>
@@ -137,7 +271,7 @@
         <div class="cell-title">${it.title}</div>
         <div>
           <span class="${badgeClass}">
-            ${Icons[it.status]()}
+            ${Icons[it.status] ? Icons[it.status]() : Icons.safe()}
             <span>${label}</span>
           </span>
         </div>
@@ -166,7 +300,6 @@
     const d = new Date(date.toLocaleString("en-US", { timeZone: tz }));
     const yyyy = d.getFullYear();
     const m = d.getMonth() + 1;
-    const mm = String(m).padStart(2, "0");
     const dd = String(d.getDate()).padStart(2, "0");
     const hh = String(d.getHours()).padStart(2, "0");
     const mi = String(d.getMinutes()).padStart(2, "0");
@@ -214,48 +347,13 @@
       score,
       tools:
         data?.tools ||
-        ["axios", "cheerio", "ssl-certificate", "whois-json", "Google Safe Browsing API"],
+        ["axios", "cheerio", "ssl-certificate", "whois-json", "Google Safe Browsing API", "ML(FastAPI)"],
       analysisTypes: data?.analysisTypes || ["비접속 기반 정적 분석", "응답 기반 동적 분석"],
       analyzedAt: data?.analyzedAt || formatKST(),
     });
   }
 
-  /* ===== 데모 바인딩 ===== */
-  document.addEventListener("DOMContentLoaded", () => {
-    // 초기 데모 렌더 (저장/실분석 전에 빈 화면 방지)
-    renderAll({
-      url: "-",
-      score: 68,
-      basic: [
-        { title: "SSL 인증서", level: "safe", note: "HTTPS로 안전하게 연결되어 있습니다." },
-        { title: "WHOIS 등록 정보", level: "safe", note: "도메인 등록자 및 생성일 정보 확인됨." },
-        {
-          title: "악성 도메인 목록 여부",
-          level: "safe",
-          note: "Google Safe Browsing/VirusTotal에 악성 이력 없음.",
-        },
-        { title: "DNS 응답 상태", level: "safe", note: "A/MX/NS 레코드가 모두 정상 동작합니다." },
-        { title: "HTML 구조 분석", level: "safe", note: "구조적으로 악성 스크립트나 iframe 흔적 없음." },
-      ],
-      vuln: [
-        { title: "XSS 탐지", level: "safe", note: "응답 내 스크립트 인젝션 징후 없음." },
-        { title: "Clickjacking 방지", level: "safe", note: "X-Frame-Options 또는 CSP 적용." },
-        { title: "파일 업로드 경로 노출", level: "safe", note: "의심 경로 노출 없음." },
-        { title: "디렉토리 리스팅", level: "safe", note: "디렉토리 인덱스 비활성화." },
-        { title: "CSP 정책", level: "safe", note: "CSP 헤더 명시되어 외부 스크립트 통제." },
-        { title: "CORS 정책", level: "bad", note: "Access-Control-Allow-Origin: * 로 과도하게 개방." },
-        { title: "서버 정보 노출", level: "safe", note: "Server, X-Powered-By 미노출/마스킹." },
-      ],
-      extra: [
-        {
-          title: "의심 키워드 포함 여부",
-          level: "warn",
-          note: "URL 경로에 index.do 포함 — 잠재적 리스크로 분류.",
-        },
-      ],
-    });
-  });
-
+  // ─── storage helpers ───
   async function loadFromStorage() {
     try {
       const l = await chrome?.storage?.local.get("reportData");
@@ -278,6 +376,10 @@
     }
   }
 
+  async function clearStoredReport() {
+    try { await chrome?.storage?.local.remove(["reportData"]); } catch (e) {}
+  }
+
   function toURLLike(input) {
     if (!input) return null;
     let v = input.trim();
@@ -289,7 +391,7 @@
     try {
       const u = new URL(v);
       return u.protocol === "http:" || u.protocol === "https:" ? u.toString() : null;
-    } catch {
+    } catch (e) {
       return null;
     }
   }
@@ -305,14 +407,14 @@
             try {
               const n = performance.getEntriesByType("navigation")[0];
               return n ? n.redirectCount : 0;
-            } catch {
+            } catch (e) {
               return 0;
             }
           },
         });
         redirectCount = res?.result ?? 0;
       }
-    } catch {}
+    } catch (e) {}
     const https = urlStr.startsWith("https:");
     const score = Math.max(1, Math.min(100, (https ? 90 : 65) - (redirectCount ? 10 : 0)));
     return {
@@ -343,82 +445,103 @@
         },
       ],
       // 요약/기술 섹션에 쓸 수 있는 메타
-      tools: ["axios", "cheerio", "ssl-certificate", "whois-json", "Google Safe Browsing API"],
+      tools: ["axios", "cheerio", "ssl-certificate", "whois-json", "Google Safe Browsing API", "ML(FastAPI)"],
       analysisTypes: ["비접속 기반 정적 분석", "응답 기반 동적 분석"],
       analyzedAt: formatKST(),
       summary: "검색창으로 입력된 URL에 대한 간이 분석 결과입니다.",
     };
   }
 
+  // ─── 핵심: 쿼리 ?url= 이 있으면 "백엔드(+ML) → 스토리지 → 간이" 우선 ───
   async function getReportDataOrFallback() {
-    let d = await loadFromStorage();
-    if (d && Array.isArray(d.basic) && Array.isArray(d.vuln) && Array.isArray(d.extra)) {
-      console.log("[SiteGuard] using stored full data");
-      return d;
-    }
-    if (d?.url) {
-      const recomputed = await runLightAnalysis(d.url, d.tabId);
-      if (recomputed) {
-        if (typeof d.score === "number") recomputed.score = d.score;
-        console.log("[SiteGuard] using recomputed data");
-        return recomputed;
+    const fromQuery = new URLSearchParams(location.search).get("url");
+
+    // ① 쿼리 url이 있으면: 백엔드 + ML 최우선
+    if (fromQuery && /^https?:\/\//i.test(fromQuery)) {
+      try {
+        const [data, mlRes] = await Promise.all([
+          runBackendAnalyze(fromQuery),
+          runMlDetect(fromQuery),
+        ]);
+        const report = convertBackendToReport(data, fromQuery);
+        report.score = unifyScoreFromBackendAndML(data, mlRes); // ★ 합산 점수로 통일
+        await chrome?.storage?.local.set({ reportUrl: fromQuery, reportData: report, schemaVersion: 2 });
+        return report;
+      } catch (e) {
+        console.warn("[SiteGuard] backend/ml failed with query url, try storage:", e);
+        // 실패 시에만 storage → light
+        try {
+          const l = await chrome?.storage?.local.get(["reportData","schemaVersion"]);
+          if (l?.schemaVersion === 2 && l?.reportData) return l.reportData;
+        } catch (ee) {
+          console.warn("[SiteGuard] storage read failed:", ee);
+        }
+        return runLightAnalysis(fromQuery, null);
       }
     }
-    console.warn("[SiteGuard] using dummy fallback");
-    return {
-      url: "https://example.com/",
-      score: 72,
-      basic: [
-        { title: "SSL 인증서", level: "safe", note: "HTTPS 연결" },
-        { title: "WHOIS 등록 정보", level: "warn", note: "확인 불가(테스트)" },
-        { title: "악성 도메인 목록 여부", level: "safe", note: "목록에 없음" },
-        { title: "DNS 상태", level: "safe", note: "정상 도메인 구조" },
-        { title: "HTML 기본 분석", level: "safe", note: "특이사항 없음" },
-      ],
-      vuln: [
-        { title: "XSS 탐지", level: "safe", note: "특이사항 없음" },
-        { title: "Clickjacking 방지 설정", level: "warn", note: "헤더 확인 불가" },
-        { title: "파일 업로드 경로 노출", level: "safe", note: "없음" },
-        { title: "디렉터리 리스팅", level: "safe", note: "없음" },
-        { title: "CSP", level: "warn", note: "정책 확인 불가" },
-        { title: "CORS 정책", level: "safe", note: "개방적 아님" },
-        { title: "서버 정보 노출", level: "safe", note: "없음" },
-      ],
-      extra: [
-        { title: "의심 키워드 포함 여부", level: "warn", note: "감지: login (예시)" },
-        { title: "리디렉션 여부", level: "safe", note: "감지되지 않음" },
-      ],
-      tools: ["axios", "cheerio", "ssl-certificate", "whois-json", "Google Safe Browsing API"],
-      analysisTypes: ["비접속 기반 정적 분석", "응답 기반 동적 분석"],
-      analyzedAt: formatKST(),
-      summary: "스토리지 미수신으로 더미 데이터 표시 중.",
-    };
+
+    // ② 쿼리 url이 없으면: 스토리지 → 백엔드(+ML) → 간이
+    try {
+      const l = await chrome?.storage?.local.get(["reportData", "reportUrl", "schemaVersion"]);
+      if (l?.schemaVersion === 2 && l?.reportData) return l.reportData;
+
+      const target = l?.reportUrl || "https://example.com/";
+      const [data, mlRes] = await Promise.all([
+        runBackendAnalyze(target),
+        runMlDetect(target),
+      ]);
+      const report = convertBackendToReport(data, target);
+      report.score = unifyScoreFromBackendAndML(data, mlRes); // ★
+      await chrome?.storage?.local.set({ reportUrl: target, reportData: report, schemaVersion: 2 });
+      return report;
+    } catch (e) {
+      console.warn("[SiteGuard] no query url, backend/storage failed, fallback:", e);
+      return runLightAnalysis("https://example.com/", null);
+    }
   }
 
-  // 헤더 검색: submit 가로채서 간이 분석 실행
+  // 헤더 검색: submit 가로채서 백엔드(+ML) 우선 분석
   function wireSearch() {
     if (!dom.searchForm || !dom.searchInput) return;
     dom.searchForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       const raw = dom.searchInput.value;
       const url = toURLLike(raw);
+
+      // URL 검증 실패 시 즉시 안내
       if (!url) {
         renderAll({
           url: raw || "-",
           score: 0,
-          basic: [],
-          vuln: [],
-          extra: [],
+          basic: [], vuln: [], extra: [],
           summary: "URL 형식이 아닙니다. 예: https://example.com",
-          tools: ["axios", "cheerio", "ssl-certificate", "whois-json", "Google Safe Browsing API"],
+          tools: ["axios", "cheerio", "ssl-certificate", "whois-json", "Google Safe Browsing API", "ML(FastAPI)"],
           analysisTypes: ["비접속 기반 정적 분석", "응답 기반 동적 분석"],
           analyzedAt: formatKST(),
         });
         return;
       }
-      const data = await runLightAnalysis(url, null);
-      renderAll(data);
-      await saveToStorage(data);
+
+      // 1) 백엔드 + ML 함께 호출
+      try {
+        const [data, mlRes] = await Promise.all([
+          runBackendAnalyze(url),
+          runMlDetect(url),
+        ]);
+        const reportData = convertBackendToReport(data, url);
+        reportData.score = unifyScoreFromBackendAndML(data, mlRes); // ★ 합산 점수
+        renderAll(reportData);
+        await saveToStorage(reportData);
+        if (dom.rptUrl) dom.rptUrl.textContent = url;
+        return;
+      } catch (err) {
+        console.warn("[SiteGuard] backend/ml analyze failed in search:", err);
+      }
+
+      // 2) 실패 시 간이분석
+      const light = await runLightAnalysis(url, null);
+      renderAll(light);
+      await saveToStorage(light);
       if (dom.rptUrl) dom.rptUrl.textContent = url;
     });
   }
@@ -429,6 +552,8 @@
       wireSearch();
       const data = await getReportDataOrFallback();
       renderAll(data);
+      // 필요하면, 예전 스냅 데이터가 다시 덮어쓰지 않도록 사용 후 제거:
+      // await clearStoredReport();
     } catch (e) {
       console.error("[SiteGuard] render error:", e);
       renderAll({
@@ -438,7 +563,7 @@
         vuln: [],
         extra: [],
         summary: "렌더링 오류",
-        tools: ["axios", "cheerio", "ssl-certificate", "whois-json", "Google Safe Browsing API"],
+        tools: ["axios", "cheerio", "ssl-certificate", "whois-json", "Google Safe Browsing API", "ML(FastAPI)"],
         analysisTypes: ["비접속 기반 정적 분석", "응답 기반 동적 분석"],
         analyzedAt: formatKST(),
       });
